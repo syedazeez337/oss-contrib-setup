@@ -17,9 +17,9 @@ Quality gate. Run before every PR. All 6 gates must pass or the PR does not open
 Invoked via `/pre-pr` command or when the user says "check before PR", "run preflight",
 "is this ready to submit", or similar.
 
-## ACE Integration
-If ACE MCP is connected, fetch the `cncf-pr-quality` playbook first:
-the playbook may contain evolved insights from recent PR outcomes that override defaults here.
+## Playbook Integration
+Read `~/.claude/playbooks/cncf-pr-quality.md` before running gates —
+it contains evolved insights from past PR outcomes that may add repo-specific rules.
 
 ---
 

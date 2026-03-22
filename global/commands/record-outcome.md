@@ -1,77 +1,65 @@
 ---
-description: Record a PR outcome to ACE platform to feed playbook evolution. Run after any PR is merged, closed, or has stalled for 2+ weeks.
-argument-hint: [merged|closed|stalled] [optional context note]
+description: Record a PR outcome to the local outcomes log. Feeds /evolve-playbooks which improves playbooks from real results.
+argument-hint: [merged|closed|stalled] [optional note]
 ---
 
 ## Outcome to Record
 
-Outcome type: $ARGUMENTS
+Type: $ARGUMENTS
 
 ## Current Context
 
-Repo: !`git remote get-url origin 2>/dev/null || echo "not a git repo"`
+Repo: !`git remote get-url origin 2>/dev/null || echo "not in a git repo"`
 Branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-PR info: !`gh pr view --json number,title,url,state,mergedAt 2>/dev/null || echo "no PR found for current branch"`
-Files changed: !`git diff main...HEAD --name-only 2>/dev/null || echo "no diff"`
+PR: !`gh pr view --json number,title,url,state 2>/dev/null || echo "no PR on this branch"`
+Files changed: !`git diff main...HEAD --name-only 2>/dev/null || git diff master...HEAD --name-only 2>/dev/null || echo "no diff"`
 
 ---
 
-## Steps
+## Instructions
 
-### Step 1 — Verify ACE connection
+### Step 1 — Parse the outcome type
+Extract the outcome type from $ARGUMENTS: `merged`, `closed`, or `stalled`.
+If not provided, ask: "What was the outcome? (merged / closed / stalled)"
 
+### Step 2 — Ensure outcomes directory exists
 ```bash
-claude mcp list
+mkdir -p ~/.claude/outcomes
 ```
 
-Look for "ace" in the output.
+### Step 3 — Append to outcomes log
+Write a structured entry to `~/.claude/outcomes/outcomes.log`:
 
-**If ACE is connected:** proceed to Step 2.
-
-**If ACE is NOT connected:**
-Output these instructions:
 ```
-ACE is not connected. To connect:
-
-1. Start ACE:
-   ~/ace-platform/start-ace.sh
-
-2. Get your API key from ACE:
-   curl http://localhost:8000/api-keys \
-     -H "Authorization: Bearer <your-token>"
-
-3. Connect via MCP:
-   claude mcp add --transport http ace http://localhost:8000/mcp \
-     --header "X-API-Key: <YOUR_API_KEY>"
-
-4. Restart the session and re-run /record-outcome
-```
-Then stop — do not proceed without ACE.
-
-### Step 2 — Record the outcome via ACE MCP
-
-Use the ACE MCP `record_outcome` tool with:
-- outcome: the type from $ARGUMENTS (merged / closed / stalled)
-- pr_url: from the gh pr view output above
-- repo: from git remote
-- notes: any context from $ARGUMENTS after the outcome type
-- files_changed: from git diff output
-
-### Step 3 — Confirm
-
-After recording, output:
-```
-✓ Outcome recorded to ACE
-  Type: <merged|closed|stalled>
-  PR: <url>
-  Playbooks affected: cncf-pr-quality, cncf-issue-finder (if applicable)
-  Evolution status: triggers automatically after 5 outcomes per playbook
+---
+date: <today YYYY-MM-DD>
+outcome: <merged|closed|stalled>
+repo: <org/repo from git remote>
+branch: <branch name>
+pr_url: <from gh pr view, or "none">
+files_changed: <list from git diff>
+notes: <anything after the outcome type in $ARGUMENTS>
+---
 ```
 
-### Step 4 — Reflection (merged or closed only)
+Use the Write or Edit tool to append this entry to `~/.claude/outcomes/outcomes.log`.
+If the file does not exist yet, create it.
 
-Ask one question to capture a lesson:
-- **If merged:** "What was the single most important factor that got this merged? (speed of response, issue type, PR size, etc.)"
-- **If closed:** "What was the main reason it was closed? (competing PR, scope, maintainer preference, wrong approach)"
+### Step 4 — Count outcomes
+Check how many entries are in `~/.claude/outcomes/outcomes.log`:
+```bash
+grep -c "^outcome:" ~/.claude/outcomes/outcomes.log 2>/dev/null || echo 0
+```
 
-Record the answer as a note on the outcome if ACE supports it.
+### Step 5 — Output summary
+```
+✓ Outcome recorded
+  Type:    <merged|closed|stalled>
+  Repo:    <repo>
+  Total outcomes logged: <N>
+```
+
+If total outcomes ≥ 5:
+```
+  → You have <N> outcomes logged. Run /evolve-playbooks to improve your playbooks.
+```

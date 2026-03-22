@@ -36,23 +36,29 @@ oss-contrib-setup/
 │   │   ├── go-reviewer.md      # Security + correctness + quality review
 │   │   └── issue-analyst.md    # Root cause + scope + mergeable score + go/no-go
 │   │
+│   ├── playbooks/              # Seed files → copied to ~/.claude/playbooks/
+│   │   ├── cncf-issue-finder.md
+│   │   ├── cncf-pr-quality.md
+│   │   ├── maintainer-response.md
+│   │   └── pr-triage.md
+│   │
 │   └── commands/               # Slash commands for daily workflow
 │       ├── find-issue.md       # /find-issue [repo]
 │       ├── pre-pr.md           # /pre-pr
 │       ├── review.md           # /review
 │       ├── commit.md           # /commit [push]
-│       └── record-outcome.md   # /record-outcome [merged|closed|stalled]
+│       ├── record-outcome.md   # /record-outcome [merged|closed|stalled]
+│       └── evolve-playbooks.md # /evolve-playbooks
 │
-└── ace/                        # Self-improving playbook system
-    ├── README.md               # Full setup and usage guide
-    ├── setup.sh                # One-shot automated setup
-    └── playbooks/
-        ├── seed.sh             # Seed the 4 core playbooks
-        └── data/               # Playbook content files
-            ├── cncf-issue-finder.md
-            ├── cncf-pr-quality.md
-            ├── maintainer-response.md
-            └── pr-triage.md
+└── ace/                        # Local playbook system docs + init script
+    ├── README.md               # How the local playbook system works
+    └── setup.sh                # Standalone init (install.sh handles this automatically)
+```
+
+**After install, these live locally and are never tracked in git:**
+```
+~/.claude/playbooks/    ← copied from global/playbooks/, updated by /evolve-playbooks
+~/.claude/outcomes/     ← outcomes.log, append-only, personal state
 ```
 
 ## Quick Start
@@ -67,14 +73,8 @@ bash ~/oss-contrib-setup/install.sh
 This symlinks `skills/`, `agents/`, `commands/`, `rules/` into `~/.claude/` and copies
 `CLAUDE.md` and `settings.json`. Future `git pull` updates skills automatically.
 
-### 2. Set up ACE (self-improving playbooks)
-
-```bash
-bash ~/oss-contrib-setup/ace/setup.sh
-```
-
-ACE runs locally via Docker (postgres + redis). Takes ~5 minutes. Sets up everything and
-connects to the assistant automatically.
+No further setup needed. The playbook system is fully local — no Docker, no databases, no API keys.
+Playbooks were copied to `~/.claude/playbooks/` and the outcomes log was created at `~/.claude/outcomes/outcomes.log` during install.
 
 ### 3. Start working
 
@@ -146,23 +146,25 @@ connects to the assistant automatically.
 | `/pre-pr` | none | Run 6-gate quality check |
 | `/review` | none | go-reviewer on current diff |
 | `/commit` | `[push]` optional | Conventional commit + optional push |
-| `/record-outcome` | `merged\|closed\|stalled` | Feed ACE for evolution |
+| `/record-outcome` | `merged\|closed\|stalled` | Append outcome to local log |
+| `/evolve-playbooks` | none | Analyse log, rewrite playbooks in-session |
 
 ---
 
-## ACE Playbooks
+## Playbooks
 
-ACE stores these playbooks and evolves them from real outcomes:
+Four markdown files in `~/.claude/playbooks/` — consulted by skills and commands,
+rewritten by `/evolve-playbooks` based on real outcomes:
 
 | Playbook | What it tracks |
 |---|---|
-| `cncf-issue-finder` | Which repos, issue types, and filters yield merges |
-| `cncf-pr-quality` | PR description standards, scope rules, CI requirements |
-| `maintainer-response` | Response timing, communication patterns |
-| `pr-triage` | Go/no-go heuristics calibrated to personal hit rate |
+| `cncf-issue-finder.md` | Which repos, issue types, and filters yield merges |
+| `cncf-pr-quality.md` | PR description standards, scope rules, CI requirements |
+| `maintainer-response.md` | Response timing, communication patterns |
+| `pr-triage.md` | Go/no-go heuristics calibrated to your personal hit rate |
 
-Evolution triggers automatically after 5 outcomes per playbook.
-The longer you use the system, the more calibrated it becomes to your specific patterns.
+No external services. Evolution happens in-session — the AI reads your outcomes log
+and rewrites the files. The longer you use the system, the more calibrated it becomes.
 
 ---
 

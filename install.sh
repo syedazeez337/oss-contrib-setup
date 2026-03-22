@@ -121,6 +121,29 @@ install_symlinked_dirs() {
     done
 }
 
+install_playbooks() {
+    info "Installing playbooks (copy — evolved in-place by /evolve-playbooks)..."
+    run "mkdir -p '$CLAUDE_DIR/playbooks'"
+    for f in "$GLOBAL_DIR/playbooks/"*.md; do
+        local dst="$CLAUDE_DIR/playbooks/$(basename "$f")"
+        if [[ -f "$dst" ]]; then
+            warn "Playbook already exists (not overwriting): $dst"
+        else
+            run "cp '$f' '$dst'"
+            if ! $DRY_RUN; then
+                success "Copied playbook: $(basename "$f")"
+            fi
+        fi
+    done
+
+    info "Creating outcomes log directory..."
+    run "mkdir -p '$CLAUDE_DIR/outcomes'"
+    if ! $DRY_RUN && [[ ! -f "$CLAUDE_DIR/outcomes/outcomes.log" ]]; then
+        touch "$CLAUDE_DIR/outcomes/outcomes.log"
+        success "Created: ~/.claude/outcomes/outcomes.log"
+    fi
+}
+
 # ─── Post-install ─────────────────────────────────────────────────────────────
 
 post_install() {
@@ -133,25 +156,25 @@ post_install() {
     echo ""
     echo "What's active:"
     echo "  ~/.claude/CLAUDE.md        — global profile (edit to customise)"
-    echo "  ~/.claude/settings.json    — permissions (edit to add project-specific rules)"
+    echo "  ~/.claude/settings.json    — permissions"
     echo "  ~/.claude/rules/           → $REPO_DIR/global/rules/ (symlink)"
     echo "  ~/.claude/skills/          → $REPO_DIR/global/skills/ (symlink)"
     echo "  ~/.claude/agents/          → $REPO_DIR/global/agents/ (symlink)"
     echo "  ~/.claude/commands/        → $REPO_DIR/global/commands/ (symlink)"
+    echo "  ~/.claude/playbooks/       — local evolving playbooks (copied)"
+    echo "  ~/.claude/outcomes/        — PR outcomes log (append-only)"
     echo ""
     echo "Available slash commands:"
     echo "  /find-issue [repo]         — scout for issues"
     echo "  /pre-pr                    — quality gate before PR"
     echo "  /review                    — go-reviewer agent on current diff"
     echo "  /commit [push]             — conventional commit + optional push"
-    echo "  /record-outcome [type]     — feed outcomes to ACE"
+    echo "  /record-outcome [type]     — log PR outcome (merged/closed/stalled)"
+    echo "  /evolve-playbooks          — improve playbooks from outcomes log"
     echo ""
     echo "Available agents:"
     echo "  go-reviewer                — code review specialist"
     echo "  issue-analyst              — triage and scope assessment"
-    echo ""
-    echo "Next step — set up ACE (self-improving playbooks):"
-    echo "  bash $REPO_DIR/ace/setup.sh"
     echo ""
     echo "To update (pull latest skills/agents/commands):"
     echo "  cd $REPO_DIR && git pull"
@@ -174,6 +197,7 @@ main() {
     preflight
     install_config_files
     install_symlinked_dirs
+    install_playbooks
 
     if ! $DRY_RUN; then
         post_install

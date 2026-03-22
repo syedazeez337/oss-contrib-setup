@@ -19,20 +19,26 @@ Current branch: !`git branch --show-current`
 
 Contribution guidelines: !`cat CONTRIBUTING.md 2>/dev/null || echo "no CONTRIBUTING.md"`
 
+Repo profile (sign-off + commit format): !`cat $(ls .claude/plans/repo-*.md 2>/dev/null | head -1) 2>/dev/null | grep -A5 "Sign-off\|Commit Format\|SIGN_OFF\|COMMIT" || echo "no repo profile"`
+
 ---
 
 ## Instructions
 
-### Step 1 — Read the contribution guidelines
-Read CONTRIBUTING.md above and extract:
-- Commit message format required (conventional commits? plain English? specific prefix?)
-- DCO sign-off required? (`Signed-off-by:` line)
-- Any branch naming conventions
-- Any test or lint requirements before committing
-- Any other repo-specific rules that affect the commit
+### Step 1 — Determine commit conventions
 
-Then read `git log --oneline -10` to confirm the actual message style used in practice.
-**The repo's own convention takes precedence over conventional commits defaults.**
+Priority order (highest wins):
+1. **Repo profile** (`.claude/plans/repo-*.md`) — read `Sign-off` and `Commit Format` fields
+2. **git log** — read the last 10 commits and extract the actual format used in practice
+3. **CONTRIBUTING.md** — read for explicit commit format instructions
+4. **Default** — conventional commits format if nothing else found
+
+From these sources extract:
+- Exact commit message format (with a real example from git log)
+- DCO / CLA / none requirement
+- Any other per-repo commit rules
+
+**The repo's own practice (git log) takes precedence over what CONTRIBUTING.md says.**
 
 ### Step 2 — Analyse the changes
 Read all staged and unstaged diffs.

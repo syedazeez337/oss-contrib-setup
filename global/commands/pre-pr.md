@@ -5,19 +5,24 @@ description: Run the PR preflight quality gate — scope, lint, tests, diff size
 ## Current Branch
 
 Branch: !`git branch --show-current`
-Base: main (or master — auto-detected)
+
+Base branch: !`BASE=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}'); [ -z "$BASE" ] && BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||'); [ -z "$BASE" ] && BASE="main"; echo "$BASE"`
 
 ## Changed Files
 
-!`git diff main...HEAD --name-only 2>/dev/null || git diff master...HEAD --name-only`
+!`BASE=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}'); [ -z "$BASE" ] && BASE="main"; git diff ${BASE}...HEAD --name-only 2>/dev/null`
 
 ## Diff Summary
 
-!`git diff main...HEAD --stat 2>/dev/null || git diff master...HEAD --stat`
+!`BASE=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}'); [ -z "$BASE" ] && BASE="main"; git diff ${BASE}...HEAD --stat 2>/dev/null`
 
 ## Recent Commits on This Branch
 
-!`git log main...HEAD --oneline 2>/dev/null || git log master...HEAD --oneline`
+!`BASE=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}'); [ -z "$BASE" ] && BASE="main"; git log ${BASE}...HEAD --oneline 2>/dev/null`
+
+## Repo Profile
+
+!`cat $(ls .claude/plans/repo-*.md 2>/dev/null | head -1) 2>/dev/null || echo "No repo profile — run repo-ingest for best results"`
 
 ---
 
@@ -25,8 +30,8 @@ Invoke the `pr-preflight` skill against the above diff and branch state.
 
 After all 6 gates are evaluated, if all pass:
 1. Output the PASSED summary block
-2. Generate a suggested PR title in conventional commits format based on the changes
-3. Generate a complete draft PR body using the description template from the skill's references
+2. Generate a suggested PR title using the commit format from the repo profile (or git log if no profile)
+3. Generate a complete draft PR body using the repo's required sections (from profile or description-template.md)
 
 If any gate fails:
 1. Output the FAILED summary block listing which gates failed and exactly what to fix

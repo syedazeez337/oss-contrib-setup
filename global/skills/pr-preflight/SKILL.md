@@ -1,32 +1,72 @@
 ---
 name: pr-preflight
-description: Pre-submission quality gate for pull requests. Run before opening any PR to catch scope creep, lint failures, missing tests, oversized diffs, and description gaps. All gates must pass — this is not optional.
-version: 1.0.0
+description: Pre-submission quality gate for pull requests. Run before opening any PR to catch scope creep, lint failures, missing tests, oversized diffs, and description gaps. Works across any language or repo. Reads repo profile from repo-ingest if available — falls back to auto-detection. Gates 2 and 3 use fix-loop to iterate until clean before reporting failure. All gates must pass — this is not optional.
+version: 2.0.0
 author: oss-contrib-setup
 license: MIT
 metadata:
   tags: [pr, quality, lint, cncf, go, gate]
-  related_skills: [cncf-issue-scout, systematic-debugging, tdd-go]
+  related_skills: [repo-ingest, fix-loop, systematic-debugging, tdd-go]
 ---
 
 # PR Preflight
 
 Quality gate. Run before every PR. All 6 gates must pass or the PR does not open.
+Gates 2 and 3 run fix-loop automatically — they iterate to clean, not just report failure.
 
-## Trigger
-Invoked via `/pre-pr` command or when the user says "check before PR", "run preflight",
-"is this ready to submit", or similar.
+---
 
-## Playbook Integration
-Read the `cncf-pr-quality` playbook before running gates: via ACE MCP if connected, otherwise `~/.claude/playbooks/cncf-pr-quality.md`.
+## Step 0 — Resolve context
+
+### Load repo profile
+```bash
+ls .claude/plans/repo-*.md 2>/dev/null | head -1
+```
+
+If a profile exists: read it and extract:
+- `BASE` — default branch (main / master / trunk / develop)
+- `BUILD_CMD`, `LINT_CMD`, `TEST_CMD` — exact commands
+- `SIGN_OFF` — DCO | CLA | none
+- `COMMIT_FORMAT` — exact format with example from git log
+- `PR_SECTIONS` — required PR body sections for this repo
+
+If no profile: note "no repo profile found — run `repo-ingest` first for best results" and auto-detect:
+
+```bash
+# Detect base branch
+BASE=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
+[ -z "$BASE" ] && BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+[ -z "$BASE" ] && BASE=$(git branch -r | grep -E 'origin/(main|master|trunk|develop)' | head -1 | sed 's|.*origin/||' | tr -d ' ')
+[ -z "$BASE" ] && BASE="main"
+
+# Detect language
+[ -f go.mod ]      && LANG=go
+[ -f pom.xml ]     && LANG=java-maven
+[ -f Cargo.toml ]  && LANG=rust
+[ -f package.json ] && LANG=node
+```
+
+**Playbook:**
+Read `cncf-pr-quality` playbook: via ACE MCP if connected, otherwise `~/.claude/playbooks/cncf-pr-quality.md`.
+
+Print resolved context before running gates:
+```
+Context:
+  Profile:     <path | not found>
+  Base branch: <BASE>
+  Language:    <lang>
+  Lint:        <LINT_CMD>
+  Test:        <TEST_CMD>
+  Sign-off:    <SIGN_OFF>
+```
 
 ---
 
 ## Gate 1 — Scope Check
 
 ```bash
-git diff main...HEAD --name-only
-git diff main...HEAD --stat
+git diff ${BASE}...HEAD --name-only
+git diff ${BASE}...HEAD --stat
 ```
 
 Check every changed file against the issue being fixed:
@@ -36,80 +76,92 @@ Check every changed file against the issue being fixed:
 - [ ] No TODO comments added (create a follow-up issue instead)
 
 **FAIL action:** Stash unrelated changes (`git stash`), create a follow-up issue for them.
+Scope failures are never auto-fixed — they require a judgement call.
 
 ---
 
-## Gate 2 — Build & Lint
+## Gate 2 — Build & Lint (with fix-loop)
 
-Detect the project and run the appropriate command:
-
+**Phase 1 — Initial run:**
 ```bash
-# Auto-detect and run:
-# Cilium
-[ -f "Makefile" ] && grep -q "golangci" Makefile && make lint
-
-# CoreDNS / default Go
-go vet ./... && golangci-lint run --timeout 5m
-
-# Strimzi (Java)
-./mvnw checkstyle:check
-
-# Fallback
-go build ./... && go vet ./...
+<LINT_CMD>   # from profile or auto-detected
 ```
 
+If exit code 0: gate passes immediately — no loop needed.
+
+**Phase 2 — If failures exist, run fix-loop (lint only, max 3 iterations):**
+- Auto-fix what the tool can handle automatically (if LINT_FIX_CMD is supported)
+- Apply pattern fixes from fix-loop references/fix-patterns.md
+- Re-run lint after each fix
+- Never use `//nolint`, `@SuppressWarnings`, `#noqa`, or similar silencing without a comment explaining why
+
+After fix-loop:
+- Clean → note what was fixed, mark gate PASS
+- Still failing → mark gate FAIL, list remaining issues with exact file:line:rule
+
+**Checklist:**
 - [ ] Build exits with code 0
-- [ ] Zero new lint warnings introduced by this branch's changes
-  - Pre-existing warnings in other files are acceptable; new ones in touched files are not
-
-**FAIL action:** Fix all lint issues before proceeding. Do not use `//nolint` without a comment.
+- [ ] Zero new warnings in files touched by this branch (pre-existing in untouched files are acceptable)
 
 ---
 
-## Gate 3 — Tests
+## Gate 3 — Tests (with fix-loop)
 
+**Phase 1 — Run tests:**
 ```bash
-go test ./... -count=1
-# Or targeted:
-go test ./path/to/changed/pkg/... -count=1 -v
+<TEST_CMD>   # from profile or auto-detected
+# If profile specifies additional flags (e.g. race detector, coverage): use them
 ```
 
-- [ ] All existing tests pass (zero failures, zero panics)
-- [ ] If new logic was added: at least one test case covers the new behaviour
-- [ ] If a bug was fixed: a regression test exists that would have caught the bug
+If exit code 0: gate passes.
 
-**FAIL action:** Fix failing tests or write the missing regression test. See tdd-go skill.
+**Phase 2 — If test failures, run fix-loop (test phase only, max 3 iterations):**
+For each failing test:
+1. Read the exact failure: test name, assertion, got vs want
+2. Determine: production code wrong or test expectation wrong?
+3. Fix the code — never silence with skip/xfail to make the loop pass
+4. Re-run the specific failing test, then the full suite
+
+**Checklist:**
+- [ ] All existing tests pass (zero failures, zero panics)
+- [ ] If new logic added: at least one test case covers it
+- [ ] If a bug fixed: regression test exists that would have caught it
+- [ ] Any extra flags required by the repo profile pass (e.g. `-race`, `--strict`)
 
 ---
 
 ## Gate 4 — Diff Size
 
 ```bash
-git diff main...HEAD --stat
+git diff ${BASE}...HEAD --stat
 ```
 
 | Lines changed | Action |
 |---|---|
 | < 100 | Proceed |
 | 100–300 | Add "Scope justification" section to PR body |
-| > 300 | **STOP** — identify what can be split into a follow-up PR/issue |
-
-**FAIL action for > 300:** Split the diff. Create a smaller focused PR + a follow-up issue for the rest.
+| > 300 | **STOP** — split into a smaller PR + follow-up issue |
 
 ---
 
 ## Gate 5 — PR Description Quality
 
-Draft a PR description and validate it against @references/description-template.md:
+Use sections from the repo profile if available — repo-specific sections override the defaults.
 
-- [ ] **Problem:** present in one sentence — describes the observable issue
-- [ ] **Root cause:** present in 1–2 sentences — explains *why* the issue exists
-- [ ] **Fix:** present in one sentence — describes *what* the change does
-- [ ] **Verification:** exact command to reproduce the problem and confirm the fix
+**Default required sections:**
+- [ ] **Problem:** one sentence — what is observably wrong
+- [ ] **Root cause:** 1–2 sentences — why it exists
+- [ ] **Fix:** one sentence — what the change does
+- [ ] **Verification:** exact command to reproduce and confirm the fix
 - [ ] **Issue link:** `Fixes #<n>` or `Closes #<n>` on its own line
-- [ ] **No vague language:** "various improvements", "misc fixes", "cleanup", "refactor" are not acceptable alone
+- [ ] No vague language ("various", "misc", "cleanup" alone are not acceptable)
 
-**FAIL action:** Revise the description until all five elements are present.
+**Repo-specific sections (from profile — override defaults when present):**
+Read the `PR_SECTIONS` field from the profile and validate those instead.
+Examples: CoreDNS uses `Why / Issues / Docs / Breaking changes`;
+Cilium uses `Problem / Solution / Related issues`.
+
+**FAIL action:** Draft the missing sections and present for approval. Never leave placeholder text.
 
 ---
 
@@ -122,41 +174,48 @@ gh pr list --repo <org>/<repo> \
 ```
 
 - [ ] No open PR exists targeting the same issue
-- [ ] No open PR exists that modifies the same files with the same intent
+- [ ] No open PR exists modifying the same files with the same intent
 
-**FAIL action:** If a competing PR exists → close your branch. If the competing PR is stale (no activity > 30 days), you may comment on it asking if the author needs help or has abandoned it before proceeding.
+**FAIL action:** Competing PR exists → close your branch. Stale (> 30 days no activity) → comment asking if abandoned before proceeding.
 
 ---
 
-## Preflight Output
+## Final Output
 
 **All gates pass:**
 ```
 ✓ PR Preflight PASSED
 
-  Gate 1 Scope:       3 files, all related to gosec G115 fix
-  Gate 2 Lint:        clean (go vet + golangci-lint)
-  Gate 3 Tests:       47 passed, 0 failed — regression test added
-  Gate 4 Diff size:   68 lines (+41 / -27) — fast review track
-  Gate 5 Description: complete — all 5 elements present
-  Gate 6 Competing:   none found
+  Profile:        <path | not found>
+  Base branch:    <BASE>
+  Gate 1 Scope:   <N> files, all related to <issue>
+  Gate 2 Lint:    PASS (<N> warnings fixed in <N> iterations | clean on first run)
+  Gate 3 Tests:   PASS (<N> passed, 0 failed)
+  Gate 4 Diff:    <N> lines — <fast track | needs justification>
+  Gate 5 Desc:    complete — all sections present
+  Gate 6 Compete: none found
+
+Sign-off:  <DCO: add -s flag | CLA: already signed | none required>
 
 Suggested PR title:
-  fix(forward): prevent G115 integer overflow in port conversion
+  <format from repo profile — uses repo's actual commit convention>
 
-Draft PR body: [generated from description-template.md]
+Draft PR body:
+  [generated from description-template.md and repo-specific sections]
 ```
 
 **Any gate fails:**
 ```
 ✗ PR Preflight FAILED — do not open PR yet
 
-  Gate 1 Scope:       FAIL — pkg/util/strings.go unrelated to issue
-  Gate 5 Description: FAIL — missing root cause, missing verification command
+  Gate 2 Lint:   FAIL — 1 warning remains after fix-loop (3 iterations)
+    <file>:<line> <rule> — <description>
+    Fix: see fix-loop/references/fix-patterns.md
+
+  Gate 5 Desc:   FAIL — missing root cause section
 
 Action required:
-  1. Stash pkg/util/strings.go changes
-  2. Add root cause and verification to PR description
+  1. <exact fix for each failing gate>
   Then re-run /pre-pr
 ```
 

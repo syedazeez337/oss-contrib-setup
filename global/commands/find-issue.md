@@ -18,3 +18,7 @@ Final output format:
 1. Top 3 issue list from cncf-issue-scout
 2. Full triage report for issue #1 from issue-analyst
 3. One-line recommended action: "Run /plan in <repo directory> to begin" or "No strong candidates — try a different repo"
+
+If the user is already inside a repo directory (git remote matches the target):
+- Check if `.claude/plans/repo-*.md` exists for this repo
+- If not: "Tip: run `repo-ingest` in this directory to learn the repo's conventions before writing any code."

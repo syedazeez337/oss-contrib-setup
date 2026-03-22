@@ -9,7 +9,7 @@ Current branch: !`git branch --show-current`
 
 Changed files: !`git diff main...HEAD --name-only 2>/dev/null | head -20`
 
-Repo profile: !`cat $(ls .claude/plans/repo-*.md 2>/dev/null | head -1) 2>/dev/null | head -40 || echo "No repo profile — run repo-ingest first for best results"`
+Repo profile: !`cat .claude/plans/repo-*.md 2>/dev/null | head -40 || echo "No repo profile — run repo-ingest first for best results"`
 
 ## Instructions
 

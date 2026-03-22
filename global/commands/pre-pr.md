@@ -6,27 +6,30 @@ description: Run the PR preflight quality gate — scope, lint, tests, diff size
 
 Branch: !`git branch --show-current`
 
-Base branch: !`BASE=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}'); [ -z "$BASE" ] && BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||'); [ -z "$BASE" ] && BASE="main"; echo "$BASE"`
+Remote default branch: !`git remote show origin 2>/dev/null | grep 'HEAD branch'`
 
 ## Changed Files
 
-!`BASE=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}'); [ -z "$BASE" ] && BASE="main"; git diff ${BASE}...HEAD --name-only 2>/dev/null`
+!`git diff main...HEAD --name-only 2>/dev/null || git diff master...HEAD --name-only 2>/dev/null || git diff trunk...HEAD --name-only 2>/dev/null`
 
 ## Diff Summary
 
-!`BASE=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}'); [ -z "$BASE" ] && BASE="main"; git diff ${BASE}...HEAD --stat 2>/dev/null`
+!`git diff main...HEAD --stat 2>/dev/null || git diff master...HEAD --stat 2>/dev/null || git diff trunk...HEAD --stat 2>/dev/null`
 
 ## Recent Commits on This Branch
 
-!`BASE=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}'); [ -z "$BASE" ] && BASE="main"; git log ${BASE}...HEAD --oneline 2>/dev/null`
+!`git log main...HEAD --oneline 2>/dev/null || git log master...HEAD --oneline 2>/dev/null || git log trunk...HEAD --oneline 2>/dev/null`
 
 ## Repo Profile
 
-!`cat $(ls .claude/plans/repo-*.md 2>/dev/null | head -1) 2>/dev/null || echo "No repo profile — run repo-ingest for best results"`
+!`cat .claude/plans/repo-*.md 2>/dev/null | head -60 || echo "No repo profile — run repo-ingest for best results"`
 
 ---
 
 Invoke the `pr-preflight` skill against the above diff and branch state.
+
+The `Remote default branch` line above tells you the actual base branch — use it for all
+`git diff <base>...HEAD` commands in the skill. Do not assume `main`.
 
 After all 6 gates are evaluated, if all pass:
 1. Output the PASSED summary block

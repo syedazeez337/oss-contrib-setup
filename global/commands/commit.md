@@ -19,7 +19,7 @@ Current branch: !`git branch --show-current`
 
 Contribution guidelines: !`cat CONTRIBUTING.md 2>/dev/null || echo "no CONTRIBUTING.md"`
 
-Repo profile (sign-off + commit format): !`cat $(ls .claude/plans/repo-*.md 2>/dev/null | head -1) 2>/dev/null | grep -A5 "Sign-off\|Commit Format\|SIGN_OFF\|COMMIT" || echo "no repo profile"`
+Repo profile (sign-off + commit format): !`cat .claude/plans/repo-*.md 2>/dev/null | grep -A5 "Sign-off\|Commit Format" | head -20 || echo "no repo profile"`
 
 ---
 

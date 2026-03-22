@@ -188,33 +188,45 @@ create_account() {
     info "Creating account and API key..."
 
     # Register (idempotent — ignore if already exists)
-    curl -sf -X POST "$ACE_URL/auth/register" \
+    curl -s -X POST "$ACE_URL/auth/register" \
         -H "Content-Type: application/json" \
         -d "{\"email\":\"$ACE_EMAIL\",\"password\":\"$ACE_PASSWORD\",\"name\":\"$ACE_NAME\"}" \
         >/dev/null 2>&1 || true
 
     # Login
     local login_resp
-    login_resp=$(curl -sf -X POST "$ACE_URL/auth/login" \
+    login_resp=$(curl -s -X POST "$ACE_URL/auth/login" \
         -H "Content-Type: application/json" \
         -d "{\"email\":\"$ACE_EMAIL\",\"password\":\"$ACE_PASSWORD\"}")
 
     local access_token
     access_token=$(echo "$login_resp" | python3 -c \
-        "import sys,json; print(json.load(sys.stdin).get('access_token',''))")
-    [[ -z "$access_token" ]] && die "Login failed: $login_resp"
+        "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || true)
 
-    # Create API key
+    if [[ -z "$access_token" ]]; then
+        warn "Login failed — ACE MCP step skipped."
+        warn "The system works fully with local files. See ace/README.md."
+        return 0
+    fi
+
+    # Create API key (requires paid ace-platform.ai subscription)
     local key_resp
-    key_resp=$(curl -sf -X POST "$ACE_URL/api-keys" \
+    key_resp=$(curl -s -X POST "$ACE_URL/auth/api-keys" \
         -H "Authorization: Bearer $access_token" \
         -H "Content-Type: application/json" \
         -d '{"name":"local","scopes":["playbooks:read","playbooks:write","outcomes:write","evolution:write"]}')
 
     local api_key
     api_key=$(echo "$key_resp" | python3 -c \
-        "import sys,json; print(json.load(sys.stdin).get('key',''))")
-    [[ -z "$api_key" ]] && die "API key creation failed: $key_resp"
+        "import sys,json; print(json.load(sys.stdin).get('key',''))" 2>/dev/null || true)
+
+    if [[ -z "$api_key" ]]; then
+        warn "API key creation failed (may require paid account at ace-platform.ai)."
+        warn "The system works fully with local files (~/.claude/playbooks/ + outcomes.log)."
+        warn "See ace/README.md for MCP setup instructions when you have an account."
+        export ACE_ACCESS_TOKEN="$access_token"
+        return 0
+    fi
 
     # Save to credentials file
     cat > "$HOME/.ace-credentials" <<EOF
@@ -240,7 +252,15 @@ connect_mcp() {
         # shellcheck disable=SC1090
         source "$HOME/.ace-credentials"; key="${ACE_API_KEY:-}"; }
 
-    if command -v claude >/dev/null 2>&1 && [[ -n "$key" ]]; then
+    if [[ -z "$key" ]]; then
+        info "Skipping MCP connection (no API key). System works with local files."
+        info "To connect later when you have an account:"
+        info "  source ~/.ace-credentials"
+        info "  claude mcp add --transport http ace $ACE_URL/mcp --header \"X-API-Key: \$ACE_API_KEY\""
+        return 0
+    fi
+
+    if command -v claude >/dev/null 2>&1; then
         info "Connecting ACE via MCP..."
         claude mcp add --transport http ace "$ACE_URL/mcp" \
             --header "X-API-Key: $key" 2>/dev/null \
@@ -248,9 +268,8 @@ connect_mcp() {
             || warn "MCP connect failed — run manually:
     claude mcp add --transport http ace $ACE_URL/mcp --header \"X-API-Key: $key\""
     else
-        warn "claude CLI not found or no key — connect manually when ready:
-    source ~/.ace-credentials
-    claude mcp add --transport http ace $ACE_URL/mcp --header \"X-API-Key: \$ACE_API_KEY\""
+        warn "claude CLI not found — connect manually:
+    claude mcp add --transport http ace $ACE_URL/mcp --header \"X-API-Key: $key\""
     fi
 }
 
@@ -262,7 +281,10 @@ seed_playbooks() {
     [[ -z "$token" && -f "$HOME/.ace-credentials" ]] && {
         # shellcheck disable=SC1090
         source "$HOME/.ace-credentials"; token="${ACE_ACCESS_TOKEN:-}"; }
-    [[ -z "$token" ]] && { warn "No token — skip seeding"; return; }
+    if [[ -z "$token" ]]; then
+        info "No ACE token — playbooks already seeded to ~/.claude/playbooks/ by install.sh"
+        return 0
+    fi
 
     local playbooks_dir="$SCRIPT_DIR/../global/playbooks"
     for f in "$playbooks_dir"/*.md; do
@@ -342,19 +364,25 @@ main() {
     echo -e "${GREEN}║  Setup complete                                       ║${NC}"
     echo -e "${GREEN}╚═══════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo "  Infrastructure:  Docker (postgres + redis)"
-    echo "  API:             http://localhost:8000"
-    echo "  MCP:             connected (claude mcp list to verify)"
-    echo "  Evolution:       /evolve-playbooks  (in-session, no API key)"
+    echo "  Infrastructure:  Docker (postgres + redis) — running"
+    echo "  API:             http://localhost:8000 — running"
+    echo "  Playbooks:       ~/.claude/playbooks/ (local files — always available)"
+    echo "  Outcomes:        ~/.claude/outcomes/outcomes.log"
+    echo "  Evolution:       /evolve-playbooks  (in-session, no API key needed)"
     echo ""
-    echo "  Start after reboot:  ~/ace-platform/start-ace.sh"
-    echo "  Logs:  /tmp/ace-{api,mcp,worker}.log"
+    if [[ -f "$HOME/.ace-credentials" ]]; then
+        echo "  MCP:             connected — verify with: claude mcp list"
+        echo "  Start after reboot:  ~/ace-platform/start-ace.sh"
+    else
+        echo "  MCP:             not connected (local file mode active)"
+        echo "  To enable MCP:   get an account at ace-platform.ai, then run this script again"
+    fi
     echo ""
     echo "  Daily:"
-    echo "    /find-issue           uses ACE cncf-issue-finder playbook"
-    echo "    /pre-pr               uses ACE cncf-pr-quality playbook"
-    echo "    /record-outcome       logs to ACE via MCP"
-    echo "    /evolve-playbooks     reads outcomes, rewrites playbooks in-session"
+    echo "    /find-issue           scout + score issues"
+    echo "    /pre-pr               quality gate before PR"
+    echo "    /record-outcome       log PR outcome"
+    echo "    /evolve-playbooks     improve playbooks from your outcomes log"
     echo ""
 }
 

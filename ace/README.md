@@ -1,55 +1,51 @@
 # ACE Platform
 
-Local self-improving playbook system. Uses Docker for infrastructure, no external API key needed.
+Self-improving playbook system. Two modes — use whichever is available:
 
-## Architecture
+| Mode | When | What stores data |
+|---|---|---|
+| **Local (default)** | Always works, zero setup | `~/.claude/playbooks/` + `~/.claude/outcomes/outcomes.log` |
+| **ACE MCP** | Requires paid ace-platform.ai account | postgres + redis via Docker |
+
+The local mode is fully functional. ACE MCP adds structured storage if you have an account.
+
+## Architecture (local mode — default)
 
 ```
-Docker (postgres + redis)   ← structured storage
-       ↓
-ACE API + MCP server        ← HTTP API + MCP tool interface
-       ↓
-AI session (MCP)            ← reads/writes playbooks, records outcomes
-       ↓
-/evolve-playbooks           ← in-session analysis + playbook rewrite (no external LLM)
+~/.claude/playbooks/        ← 4 markdown files, seeded at install
+~/.claude/outcomes/         ← outcomes.log, append-only
+         ↓
+/evolve-playbooks           ← in-session analysis + playbook rewrite (no external calls)
 ```
 
 Evolution happens inside your current AI session — the AI reads the outcomes log and
-rewrites the playbooks directly. No external API calls. No OpenAI. No Anthropic keys.
+rewrites the playbooks in-place. No external API calls. No API keys needed.
 
-## Setup
+## Local Setup (done by install.sh)
 
-One command:
+`install.sh` copies the 4 seed playbooks to `~/.claude/playbooks/` and creates
+`~/.claude/outcomes/outcomes.log`. Nothing else needed.
+
+## ACE MCP Setup (optional — requires ace-platform.ai account)
+
+If you have an account at ace-platform.ai:
+
 ```bash
 bash ~/oss-contrib-setup/ace/setup.sh
 ```
-
-Requires: Docker (already installed), Python 3.10+, git
 
 What it does:
 1. Clones `ace-platform` to `~/ace-platform`
 2. Creates Python venv + installs dependencies
 3. Starts postgres + redis via Docker Compose
 4. Runs database migrations
-5. Creates user account + API key
-6. Connects ACE to your session via MCP
-7. Seeds the 4 core playbooks
+5. Connects ACE to your session via MCP (requires valid account + API key)
+6. Seeds the 4 core playbooks into ACE's database
 
-## Starting ACE After Reboot
+### Reconnect MCP after reboot
 
 ```bash
-~/ace-platform/start-ace.sh
-```
-
-## MCP Connection
-
-Verify:
-```bash
-claude mcp list  # should show "ace"
-```
-
-Reconnect manually if needed:
-```bash
+~/ace-platform/start-ace.sh   # start Docker + services
 source ~/.ace-credentials
 claude mcp add --transport http ace http://localhost:8000/mcp \
   --header "X-API-Key: $ACE_API_KEY"
@@ -57,28 +53,16 @@ claude mcp add --transport http ace http://localhost:8000/mcp \
 
 ## Daily Usage
 
-| Command | What happens |
-|---|---|
-| `/find-issue` | Reads `cncf-issue-finder` playbook from ACE via MCP |
-| `/pre-pr` | Reads `cncf-pr-quality` playbook from ACE via MCP |
-| `/record-outcome merged` | Writes outcome to ACE via MCP |
-| `/evolve-playbooks` | Reads all outcomes from ACE, rewrites playbooks in-session, writes back |
+Both modes use the same commands — no change in workflow:
 
-## Playbooks
+| Command | Local mode | ACE MCP mode |
+|---|---|---|
+| `/find-issue` | reads `~/.claude/playbooks/cncf-issue-finder.md` | reads from ACE DB |
+| `/pre-pr` | reads `~/.claude/playbooks/cncf-pr-quality.md` | reads from ACE DB |
+| `/record-outcome merged` | appends to `~/.claude/outcomes/outcomes.log` | writes to ACE DB |
+| `/evolve-playbooks` | rewrites local files in-session | reads ACE DB, rewrites in-session |
 
-Stored in ACE's database. Seeded from `global/playbooks/*.md`.
-Rewritten in-place by `/evolve-playbooks` — no API key needed for this.
-
-Reset a playbook to seed state:
-```bash
-source ~/.ace-credentials
-curl -X PUT http://localhost:8000/playbooks/<name> \
-  -H "Authorization: Bearer $ACE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"content\": \"$(cat ~/oss-contrib-setup/global/playbooks/<name>.md | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')\"}"
-```
-
-## Troubleshooting
+## Troubleshooting (ACE MCP mode)
 
 **Postgres fails to start:**
 ```bash
@@ -92,14 +76,12 @@ cat /tmp/ace-api.log
 curl http://localhost:8000/health
 ```
 
-**MCP not connecting:**
+**MCP not in claude mcp list:**
 ```bash
-# Re-run from credentials
 source ~/.ace-credentials
 claude mcp add --transport http ace http://localhost:8000/mcp \
   --header "X-API-Key: $ACE_API_KEY"
 ```
 
-**Evolution error (LLM not configured):**
-This is expected — ignore any ACE-side evolution errors.
-Use `/evolve-playbooks` instead, which runs in your current session.
+**Evolution error from ACE:**
+Expected — ignore. Use `/evolve-playbooks` which runs in-session (no ACE call needed).

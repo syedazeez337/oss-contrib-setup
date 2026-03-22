@@ -1,5 +1,5 @@
 ---
-description: Record a PR outcome to the local outcomes log. Feeds /evolve-playbooks which improves playbooks from real results.
+description: Record a PR outcome. Writes to ACE via MCP if connected, otherwise to the local outcomes log.
 argument-hint: [merged|closed|stalled] [optional note]
 ---
 
@@ -19,47 +19,50 @@ Files changed: !`git diff main...HEAD --name-only 2>/dev/null || git diff master
 ## Instructions
 
 ### Step 1 — Parse the outcome type
-Extract the outcome type from $ARGUMENTS: `merged`, `closed`, or `stalled`.
-If not provided, ask: "What was the outcome? (merged / closed / stalled)"
+Extract from $ARGUMENTS: `merged`, `closed`, or `stalled`.
+If not present, ask: "What was the outcome? (merged / closed / stalled)"
 
-### Step 2 — Ensure outcomes directory exists
+### Step 2 — Check ACE connection
+The ACE MCP server should be in the connected tools list.
+
+**If ACE MCP is available:** use the ACE `record_outcome` MCP tool with:
+- outcome: the type
+- repo: from git remote
+- pr_url: from gh pr view
+- files_changed: from git diff
+- notes: any text after the outcome type in $ARGUMENTS
+
+**If ACE MCP is not available:** fall back to the local log:
 ```bash
 mkdir -p ~/.claude/outcomes
 ```
-
-### Step 3 — Append to outcomes log
-Write a structured entry to `~/.claude/outcomes/outcomes.log`:
-
+Append a structured entry to `~/.claude/outcomes/outcomes.log`:
 ```
 ---
-date: <today YYYY-MM-DD>
-outcome: <merged|closed|stalled>
-repo: <org/repo from git remote>
-branch: <branch name>
-pr_url: <from gh pr view, or "none">
-files_changed: <list from git diff>
-notes: <anything after the outcome type in $ARGUMENTS>
+date: <YYYY-MM-DD>
+outcome: <type>
+repo: <org/repo>
+branch: <branch>
+pr_url: <url or none>
+files_changed: <list>
+notes: <notes>
 ---
 ```
 
-Use the Write or Edit tool to append this entry to `~/.claude/outcomes/outcomes.log`.
-If the file does not exist yet, create it.
+To start ACE: `~/ace-platform/start-ace.sh`
+Then reconnect: `source ~/.ace-credentials && claude mcp add --transport http ace http://localhost:8000/mcp --header "X-API-Key: $ACE_API_KEY"`
 
-### Step 4 — Count outcomes
-Check how many entries are in `~/.claude/outcomes/outcomes.log`:
-```bash
-grep -c "^outcome:" ~/.claude/outcomes/outcomes.log 2>/dev/null || echo 0
-```
+### Step 3 — Count total outcomes
+If ACE: query the outcomes count via MCP.
+If local: `grep -c "^outcome:" ~/.claude/outcomes/outcomes.log 2>/dev/null || echo 0`
 
-### Step 5 — Output summary
+### Step 4 — Output
 ```
 ✓ Outcome recorded
   Type:    <merged|closed|stalled>
   Repo:    <repo>
-  Total outcomes logged: <N>
+  Storage: ACE (MCP) | local log
+  Total:   <N> outcomes
 ```
 
-If total outcomes ≥ 5:
-```
-  → You have <N> outcomes logged. Run /evolve-playbooks to improve your playbooks.
-```
+If total ≥ 5: suggest running `/evolve-playbooks`

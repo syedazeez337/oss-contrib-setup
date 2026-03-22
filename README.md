@@ -73,8 +73,16 @@ bash ~/oss-contrib-setup/install.sh
 This symlinks `skills/`, `agents/`, `commands/`, `rules/` into `~/.claude/` and copies
 `CLAUDE.md` and `settings.json`. Future `git pull` updates skills automatically.
 
-No further setup needed. The playbook system is fully local — no Docker, no databases, no API keys.
-Playbooks were copied to `~/.claude/playbooks/` and the outcomes log was created at `~/.claude/outcomes/outcomes.log` during install.
+### 2. Set up ACE (self-improving playbook backend)
+
+```bash
+bash ~/oss-contrib-setup/ace/setup.sh
+```
+
+Uses Docker (already installed) for postgres + redis. **No external API key needed.**
+Evolution runs in-session via `/evolve-playbooks` — not through an external LLM service.
+
+Takes ~5 minutes. When offline, the system falls back to local files at `~/.claude/playbooks/`.
 
 ### 3. Start working
 

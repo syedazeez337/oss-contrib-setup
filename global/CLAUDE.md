@@ -39,18 +39,18 @@ Repos with confirmed successful merges — prioritize these for new issues:
 8. `/commit [push]` — Conventional commit + push
 9. `/record-outcome [merged|closed|stalled]` — Feed ACE for playbook evolution
 
-## Playbooks (Self-Improving Local Files)
-Playbooks live at `~/.claude/playbooks/` and evolve from real PR outcomes.
-No external services, no API keys — evolution happens in-session.
+## Playbooks (Self-Improving)
+Playbooks evolve from real PR outcomes. No external API key needed — evolution runs in-session.
 
-Read playbooks before major decisions:
-- `~/.claude/playbooks/cncf-issue-finder.md` — which repos and issue types to target
-- `~/.claude/playbooks/cncf-pr-quality.md` — PR writing standards
-- `~/.claude/playbooks/maintainer-response.md` — handling review feedback
-- `~/.claude/playbooks/pr-triage.md` — go/no-go decision logic
+ACE is the preferred backend (Docker: postgres + redis + MCP).
+Local files (`~/.claude/playbooks/`) are the fallback when ACE is offline.
+
+Start ACE: `~/ace-platform/start-ace.sh`
+Verify MCP: `claude mcp list` — look for "ace"
+Setup guide: `~/oss-contrib-setup/ace/README.md`
 
 After each PR outcome: `/record-outcome [merged|closed|stalled]`
-After 5+ outcomes: `/evolve-playbooks` — analyses the log and rewrites the playbooks
+After 5+ outcomes: `/evolve-playbooks` — reads outcomes, rewrites playbooks in-session
 
 ## Non-Negotiable Rules
 - One issue → one PR. Never bundle unrelated changes.

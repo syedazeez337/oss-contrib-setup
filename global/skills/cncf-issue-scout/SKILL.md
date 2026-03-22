@@ -15,7 +15,7 @@ Find and score open issues across proven CNCF repositories using the mergeable s
 
 ## Prerequisites
 - `gh` CLI authenticated: run `gh auth status` to verify
-- Read `~/.claude/playbooks/cncf-issue-finder.md` before starting — it contains evolved strategies from past outcomes
+- Read the `cncf-issue-finder` playbook before starting: via ACE MCP if connected, otherwise `~/.claude/playbooks/cncf-issue-finder.md`
 
 ## Workflow
 

@@ -18,8 +18,7 @@ Invoked via `/pre-pr` command or when the user says "check before PR", "run pref
 "is this ready to submit", or similar.
 
 ## Playbook Integration
-Read `~/.claude/playbooks/cncf-pr-quality.md` before running gates —
-it contains evolved insights from past PR outcomes that may add repo-specific rules.
+Read the `cncf-pr-quality` playbook before running gates: via ACE MCP if connected, otherwise `~/.claude/playbooks/cncf-pr-quality.md`.
 
 ---
 

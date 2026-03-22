@@ -11,27 +11,41 @@ Unstaged diff: !`git diff`
 
 Staged diff: !`git diff --cached`
 
-Recent commits (for message style): !`git log --oneline -5`
+Recent commits (for message style): !`git log --oneline -10`
 
 Remote: !`git remote get-url origin 2>/dev/null || echo "no remote"`
 
 Current branch: !`git branch --show-current`
 
+Contribution guidelines: !`cat CONTRIBUTING.md 2>/dev/null || echo "no CONTRIBUTING.md"`
+
 ---
 
 ## Instructions
 
-### Step 1 — Analyse the changes
-Read all staged and unstaged diffs above.
+### Step 1 — Read the contribution guidelines
+Read CONTRIBUTING.md above and extract:
+- Commit message format required (conventional commits? plain English? specific prefix?)
+- DCO sign-off required? (`Signed-off-by:` line)
+- Any branch naming conventions
+- Any test or lint requirements before committing
+- Any other repo-specific rules that affect the commit
+
+Then read `git log --oneline -10` to confirm the actual message style used in practice.
+**The repo's own convention takes precedence over conventional commits defaults.**
+
+### Step 2 — Analyse the changes
+Read all staged and unstaged diffs.
 Identify the component (scope) and the type of change (fix/chore/feat/test/docs/refactor).
 
-### Step 2 — Propose a commit message
-Generate a conventional commit message:
+### Step 3 — Propose a commit message
+Generate a commit message that matches the repo's convention from Step 1.
+Default format (conventional commits) if no other convention found:
 ```
 <type>(<scope>): <present-tense description under 72 chars>
 ```
 
-Examples of well-formed messages for this workflow:
+Examples:
 - `fix(forward): prevent G115 integer overflow in port conversion`
 - `chore(lint): fix gosec G115 in pkg/metrics workqueue registration`
 - `test(forward): add regression test for int32 overflow boundary`
@@ -39,9 +53,9 @@ Examples of well-formed messages for this workflow:
 
 Show the proposed message and ask: "Commit with this message? (yes/edit/abort)"
 
-### Step 3 — Stage specific files
+### Step 4 — Stage specific files
 Do NOT use `git add -A` or `git add .`
-Stage only the files shown in `git status --short` that are directly related to the fix:
+Stage only the files directly related to the fix:
 ```bash
 git add path/to/file1.go path/to/file1_test.go
 ```
@@ -51,19 +65,18 @@ Do not stage:
 - `*_test` binaries or coverage output files
 - Any file not related to the fix
 
-### Step 4 — Commit
-```bash
-git commit -m "<approved message>"
-```
-
-If the repo requires DCO sign-off (coredns, cilium, strimzi):
+### Step 5 — Commit
+If CONTRIBUTING.md or git log shows DCO sign-off is required (look for `Signed-off-by` in recent commits):
 ```bash
 git commit -s -m "<approved message>"
 ```
 
-Check for DCO requirement: `grep -i "sign" CONTRIBUTING.md 2>/dev/null | head -3`
+Otherwise:
+```bash
+git commit -m "<approved message>"
+```
 
-### Step 5 — Push (only if $ARGUMENTS contains "push")
+### Step 6 — Push (only if $ARGUMENTS contains "push")
 ```bash
 git push -u origin HEAD
 ```
@@ -76,11 +89,12 @@ Or directly:
   gh pr create --title "<commit message>" --body "<draft body>"
 ```
 
-### Step 6 — Confirm
+### Step 7 — Confirm
 Output the commit hash, message, and file list:
 ```
 ✓ Committed: <hash>
   Message: <message>
   Files: <list>
+  DCO sign-off: yes/no
   <If pushed: Branch URL>
 ```

@@ -6,35 +6,27 @@ description: Run the PR preflight quality gate — scope, lint, tests, diff size
 
 Branch: !`git branch --show-current`
 
-Remote default branch: !`git remote show origin 2>/dev/null | grep 'HEAD branch'`
+Remote info: !`git remote show origin 2>/dev/null`
 
-## Changed Files
+Recent commits: !`git log --oneline -10`
 
-!`git diff main...HEAD --name-only 2>/dev/null || git diff master...HEAD --name-only 2>/dev/null || git diff trunk...HEAD --name-only 2>/dev/null`
-
-## Diff Summary
-
-!`git diff main...HEAD --stat 2>/dev/null || git diff master...HEAD --stat 2>/dev/null || git diff trunk...HEAD --stat 2>/dev/null`
-
-## Recent Commits on This Branch
-
-!`git log main...HEAD --oneline 2>/dev/null || git log master...HEAD --oneline 2>/dev/null || git log trunk...HEAD --oneline 2>/dev/null`
-
-## Repo Profile
-
-!`cat .claude/plans/repo-*.md 2>/dev/null | head -60 || echo "No repo profile — run repo-ingest for best results"`
+Status: !`git status --short`
 
 ---
 
-Invoke the `pr-preflight` skill against the above diff and branch state.
+## Instructions
 
-The `Remote default branch` line above tells you the actual base branch — use it for all
-`git diff <base>...HEAD` commands in the skill. Do not assume `main`.
+Invoke the `pr-preflight` skill.
+
+The skill will:
+1. Read `git remote show origin` output above to determine the base branch (HEAD branch line)
+2. Use the Read and Glob tools to load `.claude/plans/repo-*.md` if it exists
+3. Run all 6 gates using Bash tool with the resolved commands
 
 After all 6 gates are evaluated, if all pass:
 1. Output the PASSED summary block
-2. Generate a suggested PR title using the commit format from the repo profile (or git log if no profile)
-3. Generate a complete draft PR body using the repo's required sections (from profile or description-template.md)
+2. Generate a suggested PR title using the commit format from the repo profile or git log
+3. Generate a complete draft PR body using the repo's required sections
 
 If any gate fails:
 1. Output the FAILED summary block listing which gates failed and exactly what to fix

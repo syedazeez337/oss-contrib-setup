@@ -3,20 +3,25 @@ description: Run the fix-loop skill — iterates build, lint, and tests; fixes f
 argument-hint: [lint | tests | all — default: all]
 ---
 
-## Context
+## Current State
 
-Current branch: !`git branch --show-current`
+Branch: !`git branch --show-current`
 
-Changed files: !`git diff main...HEAD --name-only 2>/dev/null | head -20`
+Status: !`git status --short`
 
-Repo profile: !`cat .claude/plans/repo-*.md 2>/dev/null | head -40 || echo "No repo profile — run repo-ingest first for best results"`
+---
 
 ## Instructions
 
 Invoke the `fix-loop` skill.
 
-If $ARGUMENTS is `lint`: run only build and lint phases of fix-loop (skip test phase).
-If $ARGUMENTS is `tests`: run only test phase of fix-loop (skip lint phase).
+The skill will:
+1. Use the Glob tool to find `.claude/plans/repo-*.md` and read the repo profile if it exists
+2. Auto-detect language and commands if no profile found
+3. Run the fix loop for the requested scope
+
+If $ARGUMENTS is `lint`: run only build and lint phases (skip tests).
+If $ARGUMENTS is `tests`: run only test phase (skip lint).
 If $ARGUMENTS is `all` or empty: run full fix-loop (build + lint + tests).
 
 After fix-loop completes:

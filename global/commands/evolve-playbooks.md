@@ -1,36 +1,30 @@
 ---
-description: Analyse the PR outcomes log and rewrite playbooks with improved strategies. Reads from ACE MCP if connected, otherwise from the local outcomes log. Writes back via the same path.
----
-
-## Outcomes Data
-
-### From ACE (if MCP connected)
-Use ACE MCP tool to fetch all recorded outcomes. If ACE is not available, fall back to local log below.
-
-### From local log (fallback)
-!`cat ~/.claude/outcomes/outcomes.log 2>/dev/null || echo "No local outcomes logged yet."`
-
-## Current Playbooks
-
-### From ACE (if MCP connected)
-Use ACE MCP tool to fetch each playbook: cncf-issue-finder, cncf-pr-quality, maintainer-response, pr-triage.
-If ACE not available, read from local files below.
-
-### Local files (fallback)
-!`cat ~/.claude/playbooks/cncf-issue-finder.md 2>/dev/null || echo "not found — run install.sh"`
-!`cat ~/.claude/playbooks/cncf-pr-quality.md 2>/dev/null || echo "not found"`
-!`cat ~/.claude/playbooks/maintainer-response.md 2>/dev/null || echo "not found"`
-!`cat ~/.claude/playbooks/pr-triage.md 2>/dev/null || echo "not found"`
-
+description: Analyse the PR outcomes log and rewrite playbooks with improved strategies. Reads from ACE MCP if connected, otherwise from local files. Writes back via the same path.
 ---
 
 ## Instructions
 
-### Step 0 — Check data availability
-Count available outcomes (ACE or local log).
-If fewer than 3 outcomes: output "Not enough data. Log at least 3 outcomes with /record-outcome." then stop.
+### Step 0 — Load outcomes data
 
-### Step 1 — Extract patterns from outcomes
+**If ACE MCP is connected:** use ACE MCP tool to fetch all recorded outcomes.
+
+**If ACE is not available (local fallback):**
+Use the Read tool to read `~/.claude/outcomes/outcomes.log`.
+If the file is empty or missing: output "Not enough data. Log at least 3 outcomes with /record-outcome." then stop.
+
+Count available outcomes. If fewer than 3: stop with the message above.
+
+### Step 1 — Load current playbooks
+
+**If ACE MCP is connected:** use ACE MCP tool to fetch each playbook: cncf-issue-finder, cncf-pr-quality, maintainer-response, pr-triage.
+
+**If local fallback:** use the Read tool to read each file:
+- `~/.claude/playbooks/cncf-issue-finder.md`
+- `~/.claude/playbooks/cncf-pr-quality.md`
+- `~/.claude/playbooks/maintainer-response.md`
+- `~/.claude/playbooks/pr-triage.md`
+
+### Step 2 — Extract patterns from outcomes
 
 Analyse all outcomes and identify:
 - Which repos had the highest merge rate?
@@ -40,7 +34,7 @@ Analyse all outcomes and identify:
 - Why were PRs closed? (competing PR, scope, stale, maintainer preference)
 - Any patterns in what the user got wrong repeatedly?
 
-### Step 2 — Decide what to update in each playbook
+### Step 3 — Decide what to update in each playbook
 
 For each playbook, identify:
 - New strategies to add (pattern seen ≥2 times)
@@ -50,15 +44,15 @@ For each playbook, identify:
 
 Keep everything not contradicted by data.
 
-### Step 3 — Rewrite all 4 playbooks
+### Step 4 — Rewrite all 4 playbooks
 
 Rewrite each playbook with improved content. Keep the same format.
 Add at the top: `> Last evolved: <YYYY-MM-DD> — based on <N> outcomes`
 
-**If ACE MCP is connected:** write each updated playbook back via the ACE MCP update tool.
-**If local files:** write updated content to `~/.claude/playbooks/<name>.md`.
+**If ACE MCP is connected:** write each updated playbook back via ACE MCP update tool.
+**If local files:** use the Write tool to save updated content to `~/.claude/playbooks/<name>.md`.
 
-### Step 4 — Output summary
+### Step 5 — Output summary
 
 ```
 ✓ Playbooks evolved
